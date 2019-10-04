@@ -10,8 +10,7 @@
 #include <gsl/gsl_histogram.h>
 #include <gsl/gsl_errno.h>
 
-/* variables/arrays */
-float         mfe;
+
 gsl_histogram *h;     /* histogram of energies seen in current iteration */
 gsl_histogram *s;     /* true DOS of the lowest energy range (if
                        * available); required for normalization, which
@@ -19,9 +18,7 @@ gsl_histogram *s;     /* true DOS of the lowest energy range (if
 
 /* function pointers */
 void          (*pre_process_model)(void);
-void          (*post_process_model)(void);
-//float (*energie)(const char *, const char *);
-void          (*initialize_model)(const char *);
+
 
 /* functions */
 void

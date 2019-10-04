@@ -21,35 +21,9 @@ subopt_of_lowest_bins_RNA(float);
 
 /* ==== */
 void
-initialize_RNA(const char *seq)
-{
-  vrna_md_t             md;
-
-  vrna_md_set_default(&md);
-  md.temperature = wanglandau_opt.T;
-  vrna_fold_compound_t  *vc = vrna_fold_compound(seq, &md, VRNA_OPTION_MFE);
-
-  /* compute mfe */
-  mfe = vrna_mfe(vc, NULL);
-  vrna_fold_compound_free(vc);
-  if (wanglandau_opt.verbose)
-    printf("[[initialize_RNA()]]\nmfe = %6.2f\n", mfe);
-}
-
-
-/* ==== */
-void
 pre_process_RNA(void)
 {
   subopt_of_lowest_bins_RNA(wanglandau_opt.erange);
-}
-
-
-/* ==== */
-void
-post_process_RNA(void)
-{
-  return;
 }
 
 
@@ -84,7 +58,7 @@ subopt_of_lowest_bins_RNA(float e)
       have_lowest_bin = 1;
 
     if (wanglandau_opt.verbose)
-      printf("%s %6.2f %d\n", sol[strucs].structure, sol[strucs].energy, i);
+      printf("%s %6.2f %ld\n", sol[strucs].structure, sol[strucs].energy, i);
 
     gsl_histogram_increment(s, sol[strucs].energy);
     free(sol[strucs].structure);
@@ -105,7 +79,7 @@ subopt_of_lowest_bins_RNA(float e)
             "histogram s (first bin required for normalization)\n");
     for (i = 0; i < wanglandau_opt.truedosbins; i++) {
       double value = gsl_histogram_get(s, i);
-      fprintf(stderr, "s[%d]: %7g\n", i, value);
+      fprintf(stderr, "s[%ld]: %7g\n", i, value);
     }
   }
 }

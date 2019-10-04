@@ -8,7 +8,7 @@
 #include <string.h>
 #include <assert.h>
 #include "wl_options.h"
-#include "wl_cmdline.h"
+#include "wanglandau_cmdl.h"
 #include "ViennaRNA/utils.h"
 
 
@@ -99,6 +99,12 @@ ini_globals(void)
 static void
 set_wl_parameters(void)
 {
+  if(args_info.output_file_given || args_info.output_file_arg){
+    wanglandau_opt.basename = args_info.output_file_arg;
+  }
+  if(args_info.structure_file_given || args_info.structure_file_arg){
+    wanglandau_opt.structures_file = args_info.structure_file_arg;
+  }
   if (args_info.Temp_given) {
     if ((wanglandau_opt.T = args_info.Temp_arg) < -273.15) {
       fprintf(stderr, "Value of --Temp must be > -273.15\n");

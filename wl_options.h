@@ -8,6 +8,7 @@
 typedef struct _options {
   FILE      *INFILE;            /* input file */
   char      *basename;          /* base name of processed file */
+  char      *structures_file;    /* output file for sampled structures */
   long int  checksteps;         /* wl steps before histogram is checked for
                                  * flatness */
   char      *sequence;          /* sequence */

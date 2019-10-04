@@ -59,7 +59,7 @@ clock_gettime(int             clk_id,
 
 /* functions */
 static void
-initialize_wl(void);
+initialize_wl(vrna_fold_compound_t  *vc);
 
 
 static void
@@ -67,7 +67,7 @@ initialize_dos_estimate(void);
 
 
 static void
-wl_montecarlo(char *);
+wl_montecarlo(vrna_fold_compound_t  *vc,char *);
 
 
 static gsl_histogram *
@@ -110,22 +110,25 @@ static char             *out_prefix = NULL; /* prefix for output */
 void
 wanglandau(void)
 {
-  initialize_wl();            /* set function pointers for current
+  vrna_md_t             md;
+  vrna_md_set_default(&md);
+  md.temperature = wanglandau_opt.T;
+  vrna_fold_compound_t  *vc =
+    vrna_fold_compound(wanglandau_opt.sequence, &md, VRNA_OPTION_MFE);
+
+  initialize_wl(vc);            /* set function pointers for current
                                * model; allocate histograms */
   pre_process_model();        /* get normalization factor for histogram
                                * by populating the first bin */
   initialize_dos_estimate();  /* set initial DOS estimate to start
                                * with */
-  wl_montecarlo(wanglandau_opt.structure);
-  // scale_normalize_DOS();
-  post_process_model();
-  return;
+  wl_montecarlo(vc, wanglandau_opt.structure);
 }
 
 
 /* ==== */
 static void
-initialize_wl(void)
+initialize_wl(vrna_fold_compound_t *vc)
 {
   int     bins, fnlen = 512;
   char    *res_string = NULL;
@@ -136,17 +139,13 @@ initialize_wl(void)
     printf("[[initialize_wl()]]\n");
 
   /* assign function pointers */
-  initialize_model    = initialize_RNA; /* for RNA */
   pre_process_model   = pre_process_RNA;
-  post_process_model  = post_process_RNA;
-
-  /* set energy paramters for current model; compute mfe */
-  initialize_model(wanglandau_opt.sequence);
 
   range = (double *)calloc((wanglandau_opt.bins + 1), sizeof(double));
   assert(range != NULL);
 
   /* initialize histograms */
+  float mfe = vrna_mfe(vc,NULL);
   hmin = mfe;
   if (wanglandau_opt.res_given) {
     /* determine histogram ranges manually */
@@ -156,7 +155,7 @@ initialize_wl(void)
       range[i] = range[i - 1] + wanglandau_opt.res;
     if (wanglandau_opt.verbose) {
       /* info output */
-      fprintf(stderr, "#allocating %lu bins of width %g\n",
+      fprintf(stderr, "#allocating %u bins of width %g\n",
               wanglandau_opt.bins, wanglandau_opt.res);
       /* fprintf(stderr,"#histogram ranges:\n #");
        * for(i=0;i<=wanglandau_opt.bins;i++){
@@ -214,7 +213,7 @@ initialize_wl(void)
   else
     seed = ts.tv_sec ^ ts.tv_nsec;
 
-  fprintf(stderr, "initializing random seed: %d\n", seed);
+  fprintf(stderr, "initializing random seed: %ld\n", seed);
   gsl_rng_env_setup();
   r = gsl_rng_alloc(gsl_rng_mt19937);
   gsl_rng_set(r, seed);
@@ -272,7 +271,7 @@ initialize_dos_estimate(void)
 
 /* ==== */
 static void
-wl_montecarlo(char *struc)
+wl_montecarlo(vrna_fold_compound_t* vc, char *struc)
 {
   short         *pt = NULL;
   move_str      m;
@@ -292,11 +291,6 @@ wl_montecarlo(char *struc)
   //mtw_dump_pt(pt);
   //char *str = vrna_pt_to_db(pt);
   //printf(">%s<\n",str);
-  vrna_md_t             md;
-  vrna_md_set_default(&md);
-  md.temperature = wanglandau_opt.T;
-  vrna_fold_compound_t  *vc =
-    vrna_fold_compound(wanglandau_opt.sequence, &md, VRNA_OPTION_EVAL_ONLY);
   e = vrna_eval_structure_pt(vc, pt);
 
   /* determine bin where the start structure goes */
@@ -312,20 +306,25 @@ wl_montecarlo(char *struc)
 
   printf("%s\n", wanglandau_opt.sequence);
   print_str(stderr, pt);
-  printf(" (%6.2f) bin:%d\n", (float)e / 100, b1);
+  printf(" (%6.2f) bin:%ld\n", (float)e / 100, b1);
   if (wanglandau_opt.verbose)
     fprintf(stderr, "\nStarting MC loop ...\n");
+
+  FILE *output_structures;
+  if(wanglandau_opt.structures_file){
+    output_structures = fopen(wanglandau_opt.structures_file, "w");
+  }
 
   while (lnf > wanglandau_opt.ffinal) {
     if (wanglandau_opt.debug) {
       fprintf(stderr, "\n==================\n");
       fprintf(stderr, "in while: lnf=%8.6f\n", lnf);
-      fprintf(stderr, "steps: %d\n", steps);
+      fprintf(stderr, "steps: %ld\n", steps);
       fprintf(stderr, "current histogram g:\n");
       gsl_histogram_fprintf(stderr, g, "%6.2f", "%30.6f");
       fprintf(stderr, "\n");
       print_str(stderr, pt);
-      fprintf(stderr, " (%6.2f) bin:%d\n", (float)e / 100, b1);
+      fprintf(stderr, " (%6.2f) bin:%ld\n", (float)e / 100, b1);
       /*  mtw_dump_pt(pt); */
     }
 
@@ -374,9 +373,15 @@ wl_montecarlo(char *struc)
     if ((prob == 1 || (rnum <= prob))) {
       /* accept & apply the move */
       apply_move_pt(pt, m);
+      if(wanglandau_opt.structures_file){
+        char *structure = vrna_db_from_ptable(pt);
+        fprintf(output_structures,"%s %6.2f\n",structure,(float)enew / 100);
+        free(structure);
+      }
+
       if (wanglandau_opt.debug) {
         print_str(stderr, pt);
-        fprintf(stderr, " %6.2f bin:%d [A]\n", (float)enew / 100, b2);
+        fprintf(stderr, " %6.2f bin:%ld [A]\n", (float)enew / 100, b2);
       }
 
       b1  = b2;
@@ -385,7 +390,7 @@ wl_montecarlo(char *struc)
       /* reject the move */
       if (wanglandau_opt.debug) {
         print_str(stderr, pt);
-        fprintf(stderr, " (%6.2f) bin:%d [R]\n", (float)enew / 100, b2);
+        fprintf(stderr, " (%6.2f) bin:%ld [R]\n", (float)enew / 100, b2);
       }
     }
 
@@ -394,10 +399,10 @@ wl_montecarlo(char *struc)
       /* do not update if b2 <= truedosbins, i.e. keep true DOS values
        * in those bins */
       if (wanglandau_opt.debug)
-        fprintf(stderr, "NOT UPDATING bin %d\n", b1);
+        fprintf(stderr, "NOT UPDATING bin %ld\n", b1);
     } else {
       if (wanglandau_opt.debug)
-        fprintf(stderr, "UPDATING bin %d\n", b1);
+        fprintf(stderr, "UPDATING bin %ld\n", b1);
 
       status  = gsl_histogram_increment(h, (float)e / 100);
       status  = gsl_histogram_accumulate(g, (float)e / 100, lnf);
@@ -405,21 +410,8 @@ wl_montecarlo(char *struc)
 
     maxbin = MAX2(maxbin, (int)b1);
 
-    // stuff that can be skipped
-    /*
-     * printf ("performed move l:%4d r:%4d\t Energy +/- %6.2f\n",m.left,m.right,(float)emove/100);
-     * print_str(stderr,pt);printf(" %6.2f bin:%d\n",(float)enew/100,b2);
-     * e = vrna_eval_structure_pt(wanglandau_opt.sequence,pt,P);
-     * if (eval_me == 1 && e != enew){
-     * fprintf(stderr, "energy evaluation against vrna_eval_structure_pt() mismatch... HAVE %6.2f != %6.2f (SHOULD BE)\n",(float)enew/100, (float)e/100);
-     * exit(EXIT_FAILURE);
-     * }
-     * print_str(stderr,pt);printf(" %6.2f\n",(float)e/100);
-     */
-    // end of stuff that can be skipped
-
     /* output DoS every x*10^(1/4) steps, starting with x=10^6 (we
-     * used this fopr comparing perfomance and convergence of
+     * used this for comparing performance and convergence of
      * different DoS sampling methods */
     if ((steps % crosscheck == 0) && (crosscheck <= crosscheck_limit)) {
       fprintf(stderr, "# crosscheck reached %li steps ", crosscheck);
@@ -459,12 +451,15 @@ wl_montecarlo(char *struc)
 
     /* stop criterion */
     if (steps % wanglandau_opt.steplimit == 0) {
-      fprintf(stderr, "maximun number of MC steps (%li) reached, exiting ...",
+      fprintf(stderr, "maximum number of MC steps (%li) reached, exiting ...",
               wanglandau_opt.steplimit);
       break;
     }
   } /* end while */
 
+  if(wanglandau_opt.structures_file){
+    fclose(output_structures);
+  }
   vrna_fold_compound_free(vc);
   free(pt);
   return;

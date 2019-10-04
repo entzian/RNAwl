@@ -15,17 +15,9 @@
 #include <ViennaRNA/subopt.h>
 
 
-/* RNA-related */
-void
-initialize_RNA(const char *);
-
-
 void
 pre_process_RNA(void);
 
-
-void
-post_process_RNA(void);
 
 
 #endif
