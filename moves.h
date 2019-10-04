@@ -8,7 +8,14 @@ typedef struct move_str {
   int right;
 } move_str;
 
-move_str get_random_move_pt(const char *,const short int*);
-void apply_move_pt(short int *,const move_str);
+move_str
+get_random_move_pt(const char *,
+                   const short int *);
+
+
+void
+apply_move_pt(short int *,
+              const move_str);
+
 
 #endif
