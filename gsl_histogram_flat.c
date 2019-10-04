@@ -36,7 +36,7 @@ main(void)
   else
     printf("Histogram is NOT flat\n");
 
-  return;
+  return 0;
 }
 
 
